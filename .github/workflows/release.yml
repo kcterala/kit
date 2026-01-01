@@ -58,9 +58,12 @@ jobs:
 
       - name: Rename artifacts
         run: |
-          mv artifacts/kit-macos-amd64/kit artifacts/kit-macos-amd64
-          mv artifacts/kit-macos-arm64/kit artifacts/kit-macos-arm64
-          rm -rf artifacts/kit-macos-*/
+          mv artifacts/kit-macos-amd64/kit kit-macos-amd64
+          mv artifacts/kit-macos-arm64/kit kit-macos-arm64
+          rm -rf artifacts
+          mkdir artifacts
+          mv kit-macos-amd64 artifacts/
+          mv kit-macos-arm64 artifacts/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
