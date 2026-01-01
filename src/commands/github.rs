@@ -1,8 +1,8 @@
 use anyhow::Result;
-use reqwest::blocking::Client;
 use serde::Deserialize;
 use log::{debug, error};
 use crate::auth;
+use crate::http;
 
 const GET_REPO_DETAILS: &str = "https://api.github.com/repos/{owner}/{repo}";
 
@@ -23,7 +23,7 @@ pub fn get_repo_details(owner: &str, repo_name: &str) -> Result<GetRepoResponse>
     debug!("Fetching repo details for {}/{}", owner, repo_name);
 
     let token = auth::get_github_token()?;
-    let client = Client::new();
+    let client = http::get_client();
     let url = GET_REPO_DETAILS.replace("{owner}", owner).replace("{repo}", repo_name);
 
     let response = client.get(&url)

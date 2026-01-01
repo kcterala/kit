@@ -8,6 +8,8 @@ use colored::*;
 mod config;
 mod auth;
 mod commands;
+mod utils;
+mod http;
 
 #[derive(Parser)]
 #[command(name = "kit")]
@@ -26,6 +28,11 @@ enum Commands {
     Fork {
         repo: String,
     },
+
+    Ip {
+        #[arg(short, long, help = "Copy IP to clipboard")]
+        copy: bool,
+    }
 }
 
 fn main() -> Result<()> {
@@ -36,6 +43,7 @@ fn main() -> Result<()> {
     match &cli.command {
         Commands::Clone { repo } => commands::clone_repository(repo)?,
         Commands::Fork { repo } => commands::fork_repository(repo)?,
+        Commands::Ip { copy } => commands::ip(*copy)?,
     }
 
     Ok(())
