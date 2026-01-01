@@ -56,10 +56,16 @@ jobs:
         with:
           path: artifacts
 
+      - name: Rename artifacts
+        run: |
+          mv artifacts/kit-macos-amd64/kit artifacts/kit-macos-amd64
+          mv artifacts/kit-macos-arm64/kit artifacts/kit-macos-arm64
+          rm -rf artifacts/kit-macos-*/
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: artifacts/*/*
+          files: artifacts/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
