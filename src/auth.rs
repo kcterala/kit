@@ -1,6 +1,6 @@
 use std::{env, thread, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Result};
 use reqwest::blocking::{Client};
 use serde::Deserialize;
 use crate::config;
@@ -20,6 +20,16 @@ struct DeviceCodeResponse {
 struct TokenResponse {
     access_token: Option<String>,
     error: Option<String>,
+}
+
+pub fn get_github_token() -> Result<String> {
+    if let Ok(token) = config::load_token() {
+        return Ok(token);
+    }
+    
+    login()?;
+    config::load_token()
+
 }
 
 pub fn login() -> Result<()> {
