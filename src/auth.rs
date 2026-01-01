@@ -3,6 +3,8 @@ use std::{env, thread, time::Duration};
 use anyhow::{Result};
 use reqwest::blocking::{Client};
 use serde::Deserialize;
+use log::{info, error};
+use colored::*;
 use crate::config;
 
 const DEVICE_CODE_URL: &str = "https://github.com/login/device/code";
@@ -45,8 +47,8 @@ pub fn login() -> Result<()> {
         .send()?
         .json()?;
 
-    println!("Opening browser for GitHub login...");
-    println!("Enter this code: {}", device.user_code);
+    info!("Opening browser for GitHub login...");
+    info!("Enter this code: {}", device.user_code.bright_cyan().bold());
     open::that(&device.verification_uri)?;
 
     loop {
@@ -67,7 +69,7 @@ pub fn login() -> Result<()> {
 
         if let Some(access_token) = token.access_token {
             config::save_token(&access_token)?;
-            println!("Github authentication successful!");
+            info!("{} GitHub authentication successful!", "✓".green());
             return Ok(());
         }
 

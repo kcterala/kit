@@ -29,7 +29,6 @@ pub fn save_token(token: &str) -> Result<()> {
 
 pub fn load_token() -> Result<String> {
     let path = config_path()?;
-    println!("Config path {}", path.display());
     let contents = fs::read_to_string(path)?;
     let config: Config = serde_json::from_str(&contents)?;
     Ok(config.github_token)
