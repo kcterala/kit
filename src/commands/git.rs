@@ -15,7 +15,7 @@ pub fn clone_repository(repo_details: &GetRepoResponse) -> Result<ExitStatus> {
     Ok(clone_status)
 }
 
-pub fn add_upstream(repo_name: &String, parent_url: &String) -> Result<ExitStatus> {
+pub fn add_upstream(repo_name: &str, parent_url: &str) -> Result<ExitStatus> {
     let upstream_status = Command::new("git")
         .args(&["remote", "add", "upstream", &parent_url])
         .current_dir(repo_name)

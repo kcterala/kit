@@ -31,9 +31,11 @@ pub fn get_repo_details(owner: &str, repo_name: &str) -> Result<GetRepoResponse>
         .send()?;
 
     println!("Status: {}", response.status());
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!("failed to fetch repo details from github"));
+    }
     let response_text = response.text()?;
     println!("Response body: {}", response_text);
-
     let get_repo_response: GetRepoResponse = serde_json::from_str(&response_text)?;
     
     Ok(get_repo_response)
