@@ -3,7 +3,7 @@ use std::{thread, time::Duration};
 use anyhow::{Result};
 use reqwest::blocking::{Client};
 use serde::Deserialize;
-use log::{info, error};
+use log::info;
 use colored::*;
 use crate::config;
 
