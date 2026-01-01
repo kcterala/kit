@@ -1,4 +1,6 @@
 use anyhow::{Ok, Result};
+use log::{info, error};
+use colored::*;
 
 use crate::commands::github::GetRepoResponse;
 
@@ -9,13 +11,17 @@ pub fn clone_repository(repo: &str) -> Result<()> {
     let (owner, repo_name) = match resolve(repo) {
         Some(result) => result,
         None => {
+            error!("Invalid repository URL format");
             return Err(anyhow::anyhow!("Invalid repository URL format"));
         }
     };
+
+    info!("Cloning repository {}/{}", owner, repo_name);
     let repo_details: GetRepoResponse = github::get_repo_details(&owner, &repo_name)?;
     let clone_status = git::clone_repository(&repo_details)?;
+
     if clone_status.success() && repo_details.fork {
-        println!("this repo is a fork, add parent url as remote upstream");
+        info!("Repository is a fork, adding parent as upstream remote");
         if let Some(parent) = repo_details.parent {
             git::add_upstream(&repo_name, &parent.ssh_url)?;
         }
@@ -25,7 +31,7 @@ pub fn clone_repository(repo: &str) -> Result<()> {
 }
 
 pub fn fork_repository(repo: &str) -> Result<()> {
-    println!("Not implemented till now");
+    info!("Fork command not implemented yet");
     Ok(())
 }
 

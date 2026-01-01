@@ -1,5 +1,9 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use env_logger::Builder;
+use log::LevelFilter;
+use std::io::Write;
+use colored::*;
 
 mod config;
 mod auth;
@@ -18,13 +22,15 @@ enum Commands {
     Clone {
         repo: String,
     },
-    
+
     Fork {
         repo: String,
     },
 }
 
 fn main() -> Result<()> {
+    init_logger();
+
     let cli = Cli::parse();
 
     match &cli.command {
@@ -33,4 +39,26 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn init_logger() {
+    Builder::new()
+        .filter_level(LevelFilter::Info)
+        .format(|buf, record| {
+            let level_string = match record.level() {
+                log::Level::Error => "ERROR".red().bold(),
+                log::Level::Warn => "WARN".yellow().bold(),
+                log::Level::Info => "INFO".green(),
+                log::Level::Debug => "DEBUG".blue(),
+                log::Level::Trace => "TRACE".purple(),
+            };
+
+            writeln!(
+                buf,
+                "{} {}",
+                level_string,
+                record.args()
+            )
+        })
+        .init();
 }
