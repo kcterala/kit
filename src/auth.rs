@@ -1,4 +1,4 @@
-use std::{env, thread, time::Duration};
+use std::{thread, time::Duration};
 
 use anyhow::{Result};
 use reqwest::blocking::{Client};
@@ -36,7 +36,7 @@ pub fn get_github_token() -> Result<String> {
 
 pub fn login() -> Result<()> {
     let client = Client::new();
-    let client_id = get_client_id();
+    let client_id = "Ov23liC1zydB6XvkXoCl".to_string();
 
     let device: DeviceCodeResponse = client.post(DEVICE_CODE_URL)
     .header("Accept", "application/json")
@@ -82,9 +82,4 @@ pub fn login() -> Result<()> {
 
     }
 
-}
-
-fn get_client_id() -> String {
-    dotenv::dotenv().ok();
-    env::var("GITHUB_CLIENT_ID").expect("GITHUB_CLIENT_ID must be set in .env")
 }
