@@ -14,6 +14,11 @@ pub struct GetRepoResponse {
 }
 
 #[derive(Deserialize, Debug)]
+pub struct UserInfo {
+    pub login: String,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct ParentRepoInfo {
     pub ssh_url: String,
 }
@@ -43,5 +48,24 @@ pub fn get_repo_details(owner: &str, repo_name: &str) -> Result<GetRepoResponse>
     let get_repo_response: GetRepoResponse = serde_json::from_str(&response_text)?;
 
     Ok(get_repo_response)
+}
 
+pub fn get_authenticated_user(token: &str) -> Result<UserInfo> {
+    debug!("Fetching authenticated user info");
+
+    let client = http::get_client();
+    let response = client.get("https://api.github.com/user")
+        .header("Accept", "application/vnd.github+json")
+        .header("Authorization", format!("Bearer {}", token))
+        .header("X-Github-Api-Version", "2022-11-28")
+        .header("User-Agent", "kit-cli")
+        .send()?;
+
+    if !response.status().is_success() {
+        error!("Failed to fetch user info from GitHub");
+        return Err(anyhow::anyhow!("Failed to fetch user info"));
+    }
+
+    let user_info: UserInfo = response.json()?;
+    Ok(user_info)
 }

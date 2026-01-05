@@ -6,6 +6,7 @@ use serde::Deserialize;
 use log::info;
 use colored::*;
 use crate::config;
+use crate::commands::github;
 
 const DEVICE_CODE_URL: &str = "https://github.com/login/device/code";
 const TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
@@ -68,7 +69,8 @@ pub fn login() -> Result<()> {
             .json()?;
 
         if let Some(access_token) = token.access_token {
-            config::save_token(&access_token)?;
+            let user_info = github::get_authenticated_user(&access_token)?;
+            config::save_credentials(&access_token, &user_info.login)?;
             info!("{} GitHub authentication successful!", "✓".green());
             return Ok(());
         }
