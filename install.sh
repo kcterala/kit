@@ -44,12 +44,30 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Determine installation directory
-if [ -w "/usr/local/bin" ]; then
-    INSTALL_DIR="/usr/local/bin"
-else
-    INSTALL_DIR="$HOME/.local/bin"
-    mkdir -p "$INSTALL_DIR"
+# Determine installation directory - try multiple paths
+INSTALL_DIRS=(
+    "/usr/local/bin"
+    "$HOME/.local/bin"
+    "$HOME/bin"
+    "$HOME/.bin"
+)
+
+INSTALL_DIR=""
+for dir in "${INSTALL_DIRS[@]}"; do
+    mkdir -p "$dir" 2>/dev/null || true
+    if [ -d "$dir" ] && [ -w "$dir" ]; then
+        INSTALL_DIR="$dir"
+        break
+    fi
+done
+
+if [ -z "$INSTALL_DIR" ]; then
+    echo "Error: Could not find a writable installation directory"
+    echo "Tried the following paths:"
+    for dir in "${INSTALL_DIRS[@]}"; do
+        echo "  - $dir"
+    done
+    exit 1
 fi
 
 # Install the binary
