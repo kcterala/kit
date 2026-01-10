@@ -1,9 +1,11 @@
 use std::io::{self, Write};
+use std::thread;
 
 use anyhow::Result;
+use indicatif::{ProgressBar, ProgressStyle};
 use inquire::Select;
 use serde::{Deserialize, Serialize};
-use log::{info, error};
+use log::error;
 
 use crate::config;
 use crate::http;
@@ -11,15 +13,14 @@ use crate::http;
 const NUM_SUGGESTIONS: usize = 3;
 const TEMPERATURE: f32 = 0.8;
 
-const OPEN_AI_BASE_URL: &str = "https://api.openai.com/v1/responses";
+const OPEN_AI_BASE_URL: &str = "https://api.openai.com/v1/chat/completions";
 
 #[derive(Serialize)]
 struct OpenApiRequest {
-    model: String, 
-    parallel_tool_calls: bool,
+    model: String,
     temperature: f32,
-    max_output_tokens: i32,
-    input: Vec<Message>,
+    max_tokens: i32,
+    messages: Vec<Message>,
 }
 
 #[derive(Serialize)]
@@ -29,19 +30,18 @@ pub struct Message {
 }
 
 #[derive(Deserialize)]
-struct OpenApiResonse {
-    output: Vec<Output>
+struct OpenApiResponse {
+    choices: Vec<Choice>,
 }
 
 #[derive(Deserialize)]
-struct Output {
-    content: Vec<Content>
-
+struct Choice {
+    message: ResponseMessage,
 }
 
 #[derive(Deserialize)]
-struct Content {
-    text: String
+struct ResponseMessage {
+    content: String,
 }
 
 fn get_system_prompt_message() -> Message {
@@ -76,55 +76,74 @@ fn get_or_prompt_api_key() -> Result<String> {
     }
 
     config::save_openai_api_key(&api_key)?;
-    info!("API key saved to config");
     Ok(api_key)
 }
 
 fn fetch_single_suggestion(client: &reqwest::blocking::Client, api_key: &str, original_msg: &str) -> Result<String> {
-    let open_api_request = OpenApiRequest {
+    let request = OpenApiRequest {
         model: "gpt-4.1-mini".to_string(),
-        parallel_tool_calls: false,
         temperature: TEMPERATURE,
-        max_output_tokens: 40,
-        input: vec![get_system_prompt_message(), get_user_prompt_message(original_msg)]
+        max_tokens: 60,
+        messages: vec![get_system_prompt_message(), get_user_prompt_message(original_msg)],
     };
 
     let response = client.post(OPEN_AI_BASE_URL)
-        .body(serde_json::to_string(&open_api_request)?)
+        .json(&request)
         .header("Authorization", format!("Bearer {}", api_key))
         .send()?;
 
     if !response.status().is_success() {
-        error!("Failed to polish given message: {}", response.status());
+        let status = response.status();
+        let body = response.text().unwrap_or_default();
+        error!("API error {}: {}", status, body);
         return Err(anyhow::anyhow!("Failed to get polished commit message"));
     }
 
-    let response_text = response.text()?;
-    let open_api_response: OpenApiResonse = serde_json::from_str(&response_text)?;
-    let content = open_api_response.output.get(0)
-        .ok_or_else(|| anyhow::anyhow!("No output in response"))?
-        .content.get(0)
-        .ok_or_else(|| anyhow::anyhow!("No content in response"))?;
-    Ok(content.text.trim().to_string())
+    let api_response: OpenApiResponse = response.json()?;
+    let content = api_response.choices.get(0)
+        .ok_or_else(|| anyhow::anyhow!("No choices in response"))?
+        .message.content.trim().to_string();
+
+    Ok(content)
 }
 
 pub fn get_polished_commit_msg(original_msg: &str) -> Result<String> {
     let api_key = get_or_prompt_api_key()?;
-    let client = http::get_client();
 
-    info!("Generating commit message suggestions...");
+    let spinner = ProgressBar::new_spinner();
+    spinner.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap()
+    );
+    spinner.set_message("Generating commit message suggestions...");
+    spinner.enable_steady_tick(std::time::Duration::from_millis(80));
+
+    let handles: Vec<_> = (0..NUM_SUGGESTIONS)
+        .map(|_| {
+            let api_key = api_key.clone();
+            let msg = original_msg.to_string();
+            thread::spawn(move || {
+                let client = http::get_client();
+                fetch_single_suggestion(client, &api_key, &msg)
+            })
+        })
+        .collect();
 
     let mut suggestions: Vec<String> = Vec::new();
-    for _ in 0..NUM_SUGGESTIONS {
-        match fetch_single_suggestion(&client, &api_key, original_msg) {
-            Ok(msg) => {
+    for handle in handles {
+        match handle.join() {
+            Ok(Ok(msg)) => {
                 if !suggestions.contains(&msg) {
                     suggestions.push(msg);
                 }
             }
-            Err(e) => error!("Failed to fetch suggestion: {}", e),
+            Ok(Err(e)) => error!("Failed to fetch suggestion: {}", e),
+            Err(_) => error!("Thread panicked"),
         }
     }
+
+    spinner.finish_and_clear();
 
     if suggestions.is_empty() {
         return Err(anyhow::anyhow!("Failed to generate any commit message suggestions"));
