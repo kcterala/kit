@@ -2,9 +2,9 @@ use std::io::{self, Write};
 use std::thread;
 
 use anyhow::Result;
-use indicatif::{ProgressBar, ProgressStyle};
 use inquire::Select;
 use serde::{Deserialize, Serialize};
+use spinoff::{spinners, Spinner, Color};
 use log::error;
 
 use crate::config;
@@ -12,6 +12,8 @@ use crate::http;
 
 const NUM_SUGGESTIONS: usize = 3;
 const TEMPERATURE: f32 = 0.8;
+const MAX_REGENERATIONS: usize = 3;
+const MAX_CONTEXT_LEN: usize = 500;
 
 const OPEN_AI_BASE_URL: &str = "https://api.openai.com/v1/chat/completions";
 
@@ -107,22 +109,15 @@ fn fetch_single_suggestion(client: &reqwest::blocking::Client, api_key: &str, or
     Ok(content)
 }
 
-pub fn get_polished_commit_msg(original_msg: &str) -> Result<String> {
-    let api_key = get_or_prompt_api_key()?;
+const ADD_CONTEXT_OPTION: &str = "↻ Regenerate with more context...";
 
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_style(
-        ProgressStyle::default_spinner()
-            .template("{spinner:.green} {msg}")
-            .unwrap()
-    );
-    spinner.set_message("Generating commit message suggestions...");
-    spinner.enable_steady_tick(std::time::Duration::from_millis(80));
+fn fetch_suggestions(api_key: &str, message: &str) -> Vec<String> {
+    let mut spinner = Spinner::new(spinners::BouncingBar, "Generating commit message suggestions...", Color::Blue);
 
     let handles: Vec<_> = (0..NUM_SUGGESTIONS)
         .map(|_| {
-            let api_key = api_key.clone();
-            let msg = original_msg.to_string();
+            let api_key = api_key.to_string();
+            let msg = message.to_string();
             thread::spawn(move || {
                 let client = http::get_client();
                 fetch_single_suggestion(client, &api_key, &msg)
@@ -143,15 +138,65 @@ pub fn get_polished_commit_msg(original_msg: &str) -> Result<String> {
         }
     }
 
-    spinner.finish_and_clear();
+    spinner.stop();
+    suggestions
+}
 
-    if suggestions.is_empty() {
-        return Err(anyhow::anyhow!("Failed to generate any commit message suggestions"));
+pub fn get_polished_commit_msg(original_msg: &str) -> Result<String> {
+    let api_key = get_or_prompt_api_key()?;
+    let mut current_msg = original_msg.to_string();
+    let mut regeneration_count = 0;
+
+    loop {
+        if regeneration_count >= MAX_REGENERATIONS {
+            return Err(anyhow::anyhow!(
+                "Maximum regeneration attempts ({}) reached",
+                MAX_REGENERATIONS
+            ));
+        }
+
+        let suggestions = fetch_suggestions(&api_key, &current_msg);
+        regeneration_count += 1;
+
+        if suggestions.is_empty() {
+            return Err(anyhow::anyhow!("Failed to generate any commit message suggestions"));
+        }
+
+        let options: Vec<String> = suggestions
+            .into_iter()
+            .chain(std::iter::once(ADD_CONTEXT_OPTION.to_string()))
+            .collect();
+
+        let selected = Select::new("Select a commit message:", options)
+            .prompt()
+            .map_err(|e| anyhow::anyhow!("Selection cancelled: {}", e))?;
+
+        if selected == ADD_CONTEXT_OPTION {
+            print!("Additional context: ");
+            io::stdout().flush()?;
+
+            let mut extra_context = String::new();
+            io::stdin().read_line(&mut extra_context)?;
+            let extra_context = extra_context.trim();
+
+            if extra_context.is_empty() {
+                continue;
+            }
+
+            let new_msg = format!("{}, {}", current_msg, extra_context);
+            if new_msg.len() > MAX_CONTEXT_LEN {
+                error!(
+                    "Context too long ({} chars). Maximum allowed: {} chars",
+                    new_msg.len(),
+                    MAX_CONTEXT_LEN
+                );
+                continue;
+            }
+
+            current_msg = new_msg;
+            continue;
+        }
+
+        return Ok(selected);
     }
-
-    let selected = Select::new("Select a commit message:", suggestions)
-        .prompt()
-        .map_err(|e| anyhow::anyhow!("Selection cancelled: {}", e))?;
-
-    Ok(selected)
 }
