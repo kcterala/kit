@@ -1,12 +1,14 @@
-use anyhow::{Ok, Result};
+use anyhow::{Result};
 use log::{info, error, warn};
 use colored::*;
 
 use crate::commands::github::GetRepoResponse;
 use crate::utils;
 use crate::http;
+use crate::config;
+use crate::auth;
 
-mod github;
+pub mod github;
 mod git;
 
 const BASE_URL_FOR_IP: &str = "https://1.1.1.1/cdn-cgi/trace";
@@ -20,24 +22,41 @@ pub fn clone_repository(repo: &str) -> Result<()> {
         }
     };
 
+    // Ensure we have credentials (will trigger login if needed)
+    auth::get_github_token()?;
+
     info!("Cloning repository {}/{}", owner, repo_name);
     let repo_details: GetRepoResponse = github::get_repo_details(&owner, &repo_name)?;
     let clone_status = git::clone_repository(&repo_details)?;
 
-    if clone_status.success() && repo_details.fork {
+    if !clone_status.success() {
+        return Err(anyhow::anyhow!("Could not clone repository"));
+    }
+
+    // Only add upstream if it's a fork AND owner matches logged-in user
+    if should_add_upstream(&owner, &repo_details)? {
         info!("Repository is a fork, adding parent as upstream remote");
-        if let Some(parent) = repo_details.parent {
-            git::add_upstream(&repo_name, &parent.ssh_url)?;
-        }
+        let parent = repo_details.parent
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Forked repository has no parent"))?;
+
+        git::add_upstream(&repo_name, &parent.ssh_url)?;
     }
 
     Ok(())
+}
+
+
+fn should_add_upstream(owner: &str, repo_details: &GetRepoResponse) -> Result<bool> {
+    let github_username = config::load_username()?;
+    Ok(repo_details.fork && owner.eq_ignore_ascii_case(&github_username))
 }
 
 pub fn fork_repository(repo: &str) -> Result<()> {
     info!("Fork command not implemented yet");
     Ok(())
 }
+
 
 pub fn ip(copy_to_clipboard: bool) -> Result<()> {
     let client = http::get_client();

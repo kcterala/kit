@@ -4,7 +4,6 @@ use log::{info, error};
 use colored::*;
 use crate::commands::github::GetRepoResponse;
 
-
 pub fn clone_repository(repo_details: &GetRepoResponse) -> Result<ExitStatus> {
     info!("Cloning from {}", repo_details.ssh_url.bright_black());
 
