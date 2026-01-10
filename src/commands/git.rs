@@ -36,3 +36,37 @@ pub fn add_upstream(repo_name: &str, parent_url: &str) -> Result<ExitStatus> {
 
     Ok(upstream_status)
 }
+
+pub fn is_git_repo() -> bool {
+    Command::new("git")
+        .args(&["rev-parse", "--is-inside-work-tree"])
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+pub fn add_all() -> Result<ExitStatus> {
+    let status = Command::new("git")
+        .args(&["add", "."])
+        .status()?;
+
+    if !status.success() {
+        error!("Failed to stage changes");
+    }
+
+    Ok(status)
+}
+
+pub fn commit_with_message(message: &str) -> Result<ExitStatus> {
+    let status = Command::new("git")
+        .args(&["commit", "-m", message])
+        .status()?;
+
+    if status.success() {
+        info!("{} Committed: {}", "✓".green(), message);
+    } else {
+        error!("Failed to commit");
+    }
+
+    Ok(status)
+}

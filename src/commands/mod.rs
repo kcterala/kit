@@ -10,8 +10,22 @@ use crate::auth;
 
 pub mod github;
 mod git;
+mod ai;
 
 const BASE_URL_FOR_IP: &str = "https://1.1.1.1/cdn-cgi/trace";
+
+pub fn commit(message: &str) -> Result<()> {
+    if !git::is_git_repo() {
+        return Err(anyhow::anyhow!("Not a git repository"));
+    }
+
+    let polished_message = ai::get_polished_commit_msg(message)?;
+
+    git::add_all()?;
+    git::commit_with_message(&polished_message)?;
+
+    Ok(())
+}
 
 pub fn clone_repository(repo: &str) -> Result<()> {
     let (owner, repo_name) = match resolve(repo) {

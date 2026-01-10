@@ -28,7 +28,9 @@ enum Commands {
     Fork {
         repo: String,
     },
-
+    AiCommit {
+        message: String,
+    },
     Ip {
         #[arg(short, long, help = "Copy IP to clipboard")]
         copy: bool,
@@ -44,6 +46,7 @@ fn main() -> Result<()> {
         Commands::Clone { repo } => commands::clone_repository(repo)?,
         Commands::Fork { repo } => commands::fork_repository(repo)?,
         Commands::Ip { copy } => commands::ip(*copy)?,
+        Commands::AiCommit { message } => commands::commit(message)?,
     }
 
     Ok(())
