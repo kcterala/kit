@@ -1,11 +1,15 @@
 use std::io::{self, Write};
 
 use anyhow::Result;
+use inquire::Select;
 use serde::{Deserialize, Serialize};
 use log::{info, error};
 
 use crate::config;
 use crate::http;
+
+const NUM_SUGGESTIONS: usize = 3;
+const TEMPERATURE: f32 = 0.8;
 
 const OPEN_AI_BASE_URL: &str = "https://api.openai.com/v1/responses";
 
@@ -76,14 +80,11 @@ fn get_or_prompt_api_key() -> Result<String> {
     Ok(api_key)
 }
 
-pub fn get_polished_commit_msg(original_msg: &str) -> Result<String> {
-    let api_key = get_or_prompt_api_key()?;
-    let client = http::get_client();
-
+fn fetch_single_suggestion(client: &reqwest::blocking::Client, api_key: &str, original_msg: &str) -> Result<String> {
     let open_api_request = OpenApiRequest {
         model: "gpt-4.1-mini".to_string(),
         parallel_tool_calls: false,
-        temperature: 0.2,
+        temperature: TEMPERATURE,
         max_output_tokens: 40,
         input: vec![get_system_prompt_message(), get_user_prompt_message(original_msg)]
     };
@@ -104,5 +105,34 @@ pub fn get_polished_commit_msg(original_msg: &str) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("No output in response"))?
         .content.get(0)
         .ok_or_else(|| anyhow::anyhow!("No content in response"))?;
-    Ok(content.text.to_string())
+    Ok(content.text.trim().to_string())
+}
+
+pub fn get_polished_commit_msg(original_msg: &str) -> Result<String> {
+    let api_key = get_or_prompt_api_key()?;
+    let client = http::get_client();
+
+    info!("Generating commit message suggestions...");
+
+    let mut suggestions: Vec<String> = Vec::new();
+    for _ in 0..NUM_SUGGESTIONS {
+        match fetch_single_suggestion(&client, &api_key, original_msg) {
+            Ok(msg) => {
+                if !suggestions.contains(&msg) {
+                    suggestions.push(msg);
+                }
+            }
+            Err(e) => error!("Failed to fetch suggestion: {}", e),
+        }
+    }
+
+    if suggestions.is_empty() {
+        return Err(anyhow::anyhow!("Failed to generate any commit message suggestions"));
+    }
+
+    let selected = Select::new("Select a commit message:", suggestions)
+        .prompt()
+        .map_err(|e| anyhow::anyhow!("Selection cancelled: {}", e))?;
+
+    Ok(selected)
 }
