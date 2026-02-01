@@ -3,9 +3,9 @@ use std::thread;
 
 use anyhow::Result;
 use inquire::Select;
-use serde::{Deserialize, Serialize};
-use spinoff::{spinners, Spinner, Color};
 use log::error;
+use serde::{Deserialize, Serialize};
+use spinoff::{Color, Spinner, spinners};
 
 use crate::config;
 use crate::http;
@@ -28,7 +28,7 @@ struct OpenApiRequest {
 #[derive(Serialize)]
 pub struct Message {
     role: String,
-    content: String
+    content: String,
 }
 
 #[derive(Deserialize)]
@@ -47,19 +47,18 @@ struct ResponseMessage {
 }
 
 fn get_system_prompt_message() -> Message {
-    Message { 
+    Message {
         role: "system".to_string(),
         content:  "You rewrite git commit messages to be professional and follow Conventional Commits. Its ok if you skip scope but try to figure out. Output only the commit message. No explanations.".to_string()
     }
 }
 
 fn get_user_prompt_message(message: &str) -> Message {
-    Message { 
+    Message {
         role: "user".to_string(),
-        content:  message.to_string()
+        content: message.to_string(),
     }
 }
-
 
 fn get_or_prompt_api_key() -> Result<String> {
     if let Some(key) = config::load_openai_api_key()? {
@@ -81,15 +80,23 @@ fn get_or_prompt_api_key() -> Result<String> {
     Ok(api_key)
 }
 
-fn fetch_single_suggestion(client: &reqwest::blocking::Client, api_key: &str, original_msg: &str) -> Result<String> {
+fn fetch_single_suggestion(
+    client: &reqwest::blocking::Client,
+    api_key: &str,
+    original_msg: &str,
+) -> Result<String> {
     let request = OpenApiRequest {
         model: "gpt-4.1-mini".to_string(),
         temperature: TEMPERATURE,
         max_tokens: 60,
-        messages: vec![get_system_prompt_message(), get_user_prompt_message(original_msg)],
+        messages: vec![
+            get_system_prompt_message(),
+            get_user_prompt_message(original_msg),
+        ],
     };
 
-    let response = client.post(OPEN_AI_BASE_URL)
+    let response = client
+        .post(OPEN_AI_BASE_URL)
         .json(&request)
         .header("Authorization", format!("Bearer {}", api_key))
         .send()?;
@@ -102,9 +109,14 @@ fn fetch_single_suggestion(client: &reqwest::blocking::Client, api_key: &str, or
     }
 
     let api_response: OpenApiResponse = response.json()?;
-    let content = api_response.choices.get(0)
+    let content = api_response
+        .choices
+        .get(0)
         .ok_or_else(|| anyhow::anyhow!("No choices in response"))?
-        .message.content.trim().to_string();
+        .message
+        .content
+        .trim()
+        .to_string();
 
     Ok(content)
 }
@@ -112,7 +124,11 @@ fn fetch_single_suggestion(client: &reqwest::blocking::Client, api_key: &str, or
 const ADD_CONTEXT_OPTION: &str = "↻ Regenerate with more context...";
 
 fn fetch_suggestions(api_key: &str, message: &str) -> Vec<String> {
-    let mut spinner = Spinner::new(spinners::BouncingBar, "Generating commit message suggestions...", Color::Blue);
+    let mut spinner = Spinner::new(
+        spinners::BouncingBar,
+        "Generating commit message suggestions...",
+        Color::Blue,
+    );
 
     let handles: Vec<_> = (0..NUM_SUGGESTIONS)
         .map(|_| {
@@ -159,7 +175,9 @@ pub fn get_polished_commit_msg(original_msg: &str) -> Result<String> {
         regeneration_count += 1;
 
         if suggestions.is_empty() {
-            return Err(anyhow::anyhow!("Failed to generate any commit message suggestions"));
+            return Err(anyhow::anyhow!(
+                "Failed to generate any commit message suggestions"
+            ));
         }
 
         let options: Vec<String> = suggestions

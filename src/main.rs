@@ -1,15 +1,15 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use colored::*;
 use env_logger::Builder;
 use log::LevelFilter;
 use std::io::Write;
-use colored::*;
 
-mod config;
 mod auth;
 mod commands;
-mod utils;
+mod config;
 mod http;
+mod utils;
 
 #[derive(Parser)]
 #[command(name = "kit")]
@@ -34,7 +34,7 @@ enum Commands {
     Ip {
         #[arg(short, long, help = "Copy IP to clipboard")]
         copy: bool,
-    }
+    },
 }
 
 fn main() -> Result<()> {
@@ -64,12 +64,7 @@ fn init_logger() {
                 log::Level::Trace => "TRACE".purple(),
             };
 
-            writeln!(
-                buf,
-                "{} {}",
-                level_string,
-                record.args()
-            )
+            writeln!(buf, "{} {}", level_string, record.args())
         })
         .init();
 }

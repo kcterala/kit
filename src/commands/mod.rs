@@ -1,16 +1,16 @@
-use anyhow::{Result};
-use log::{info, error, warn};
+use anyhow::Result;
 use colored::*;
+use log::{error, info, warn};
 
-use crate::commands::github::GetRepoResponse;
-use crate::utils;
-use crate::http;
-use crate::config;
 use crate::auth;
+use crate::commands::github::GetRepoResponse;
+use crate::config;
+use crate::http;
+use crate::utils;
 
-pub mod github;
-mod git;
 mod ai;
+mod git;
+pub mod github;
 
 const BASE_URL_FOR_IP: &str = "https://1.1.1.1/cdn-cgi/trace";
 
@@ -50,7 +50,8 @@ pub fn clone_repository(repo: &str) -> Result<()> {
     // Only add upstream if it's a fork AND owner matches logged-in user
     if should_add_upstream(&owner, &repo_details)? {
         info!("Repository is a fork, adding parent as upstream remote");
-        let parent = repo_details.parent
+        let parent = repo_details
+            .parent
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Forked repository has no parent"))?;
 
@@ -59,7 +60,6 @@ pub fn clone_repository(repo: &str) -> Result<()> {
 
     Ok(())
 }
-
 
 fn should_add_upstream(owner: &str, repo_details: &GetRepoResponse) -> Result<bool> {
     let github_username = config::load_username()?;
@@ -71,11 +71,11 @@ pub fn fork_repository(repo: &str) -> Result<()> {
     Ok(())
 }
 
-
 pub fn ip(copy_to_clipboard: bool) -> Result<()> {
     let client = http::get_client();
 
-    let response = client.get(BASE_URL_FOR_IP)
+    let response = client
+        .get(BASE_URL_FOR_IP)
         .header("User-Agent", "kit-cli")
         .send()?;
 
@@ -132,15 +132,15 @@ fn resolve(repo_url: &str) -> Option<(String, String)> {
             return Some((parts[0].to_string(), parts[1].to_string()));
         }
     } else if repo_url.starts_with("git@github.com:") {
-          // Parse SSH URL
-          let path = repo_url.strip_prefix("git@github.com:")?;
-          let path = path.strip_suffix(".git").unwrap_or(path);
+        // Parse SSH URL
+        let path = repo_url.strip_prefix("git@github.com:")?;
+        let path = path.strip_suffix(".git").unwrap_or(path);
 
-          let parts: Vec<&str> = path.split("/").collect();
-          if parts.len() == 2 {
-              return Some((parts[0].to_string(), parts[1].to_string()));
-          }
-      }
+        let parts: Vec<&str> = path.split("/").collect();
+        if parts.len() == 2 {
+            return Some((parts[0].to_string(), parts[1].to_string()));
+        }
+    }
 
-      None
+    None
 }

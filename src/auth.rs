@@ -1,12 +1,12 @@
 use std::{thread, time::Duration};
 
-use anyhow::{Result};
-use reqwest::blocking::{Client};
-use serde::Deserialize;
-use log::info;
-use colored::*;
-use crate::config;
 use crate::commands::github;
+use crate::config;
+use anyhow::Result;
+use colored::*;
+use log::info;
+use reqwest::blocking::Client;
+use serde::Deserialize;
 
 const DEVICE_CODE_URL: &str = "https://github.com/login/device/code";
 const TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
@@ -29,19 +29,19 @@ pub fn get_github_token() -> Result<String> {
     if let Ok(token) = config::load_token() {
         return Ok(token);
     }
-    
+
     login()?;
     config::load_token()
-
 }
 
 pub fn login() -> Result<()> {
     let client = Client::new();
     let client_id = "Ov23liC1zydB6XvkXoCl".to_string();
 
-    let device: DeviceCodeResponse = client.post(DEVICE_CODE_URL)
-    .header("Accept", "application/json")
-    .form(&[
+    let device: DeviceCodeResponse = client
+        .post(DEVICE_CODE_URL)
+        .header("Accept", "application/json")
+        .form(&[
             ("client_id", &client_id),
             ("scope", &"read:user public_repo".to_string()),
         ])
@@ -81,7 +81,5 @@ pub fn login() -> Result<()> {
             Some(err) => return Err(anyhow::anyhow!("OAuth error: {}", err)),
             None => {}
         }
-
     }
-
 }

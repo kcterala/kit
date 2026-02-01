@@ -1,8 +1,8 @@
-use anyhow::Result;
-use serde::Deserialize;
-use log::{debug, error};
 use crate::auth;
 use crate::http;
+use anyhow::Result;
+use log::{debug, error};
+use serde::Deserialize;
 
 const GET_REPO_DETAILS: &str = "https://api.github.com/repos/{owner}/{repo}";
 
@@ -10,7 +10,7 @@ const GET_REPO_DETAILS: &str = "https://api.github.com/repos/{owner}/{repo}";
 pub struct GetRepoResponse {
     pub fork: bool,
     pub ssh_url: String,
-    pub parent: Option<ParentRepoInfo>
+    pub parent: Option<ParentRepoInfo>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -23,15 +23,17 @@ pub struct ParentRepoInfo {
     pub ssh_url: String,
 }
 
-
 pub fn get_repo_details(owner: &str, repo_name: &str) -> Result<GetRepoResponse> {
     debug!("Fetching repo details for {}/{}", owner, repo_name);
 
     let token = auth::get_github_token()?;
     let client = http::get_client();
-    let url = GET_REPO_DETAILS.replace("{owner}", owner).replace("{repo}", repo_name);
+    let url = GET_REPO_DETAILS
+        .replace("{owner}", owner)
+        .replace("{repo}", repo_name);
 
-    let response = client.get(&url)
+    let response = client
+        .get(&url)
         .header("Accept", "application/vnd.github+json")
         .header("Authorization", format!("Bearer {}", token))
         .header("X-Github-Api-Version", "2022-11-28")
@@ -54,7 +56,8 @@ pub fn get_authenticated_user(token: &str) -> Result<UserInfo> {
     debug!("Fetching authenticated user info");
 
     let client = http::get_client();
-    let response = client.get("https://api.github.com/user")
+    let response = client
+        .get("https://api.github.com/user")
         .header("Accept", "application/vnd.github+json")
         .header("Authorization", format!("Bearer {}", token))
         .header("X-Github-Api-Version", "2022-11-28")
