@@ -19,10 +19,20 @@ pub fn commit(message: &str) -> Result<()> {
         return Err(anyhow::anyhow!("Not a git repository"));
     }
 
-    let polished_message = ai::get_polished_commit_msg(message)?;
-
     git::add_all()?;
-    git::commit_with_message(&polished_message)?;
+    git::commit_with_message(message)?;
+
+    Ok(())
+}
+
+pub fn ai_commit(raw_message: &str) -> Result<()> {
+    // Fail fast before making an API call
+    if !git::is_git_repo() {
+        return Err(anyhow::anyhow!("Not a git repository"));
+    }
+
+    let ai_polished_message = ai::get_polished_commit_msg(raw_message)?;
+    commit(&ai_polished_message)?;
 
     Ok(())
 }
@@ -120,8 +130,8 @@ pub fn ip(copy_to_clipboard: bool) -> Result<()> {
     Err(anyhow::anyhow!("Could not parse IP address from response"))
 }
 
-// https://github.com/kcterala/kcx.git
-// git@github.com:kcterala/kcx.git
+/// https://github.com/kcterala/kcx.git
+/// git@github.com:kcterala/kcx.git
 fn resolve(repo_url: &str) -> Option<(String, String)> {
     if repo_url.starts_with("https://github.com/") {
         let path = repo_url.strip_prefix("https://github.com/")?;
