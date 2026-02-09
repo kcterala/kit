@@ -49,26 +49,26 @@ pub fn is_git_repo() -> bool {
         .unwrap_or(false)
 }
 
-pub fn add_all() -> Result<ExitStatus> {
+pub fn add_all() -> Result<()> {
     let status = Command::new("git").args(&["add", "."]).status()?;
 
     if !status.success() {
-        error!("Failed to stage changes");
+        return Err(anyhow::anyhow!("Failed to stage changes"));
     }
 
-    Ok(status)
+    Ok(())
 }
 
-pub fn commit_with_message(message: &str) -> Result<ExitStatus> {
+pub fn commit_with_message(message: &str) -> Result<()> {
     let status = Command::new("git")
         .args(&["commit", "-m", message])
         .status()?;
 
-    if status.success() {
-        info!("{} Committed: {}", "✓".green(), message);
-    } else {
-        error!("Failed to commit");
+    if !status.success() {
+        return Err(anyhow::anyhow!("Failed to commit"));
     }
 
-    Ok(status)
+    info!("{} Committed: {}", "✓".green(), message);
+
+    Ok(())
 }
