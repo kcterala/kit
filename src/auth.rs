@@ -1,6 +1,6 @@
 use std::{thread, time::Duration};
 
-use crate::commands::github;
+use crate::services::github;
 use crate::config;
 use anyhow::Result;
 use colored::*;

@@ -9,7 +9,12 @@ mod auth;
 mod commands;
 mod config;
 mod http;
+mod services;
 mod utils;
+
+use commands::{
+    AiCommitCommand, CloneCommand, Command, CommitCommand, ForkCommand, IpCommand, NetworkCommand,
+};
 
 #[derive(Parser)]
 #[command(name = "kit")]
@@ -21,26 +26,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    Clone {
-        repo: String,
-    },
-
-    Fork {
-        repo: String,
-    },
-    
-    Commit {
-        message: String,
-    },
-
-    AiCommit {
-        message: String,
-    },
-
-    Ip {
-        #[arg(short, long, help = "Copy IP to clipboard")]
-        copy: bool,
-    },
+    Clone(CloneCommand),
+    Fork(ForkCommand),
+    Commit(CommitCommand),
+    AiCommit(AiCommitCommand),
+    Ip(IpCommand),
+    Network(NetworkCommand),
 }
 
 fn main() -> Result<()> {
@@ -48,13 +39,16 @@ fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
-    match &cli.command {
-        Commands::Clone { repo } => commands::clone_repository(repo)?,
-        Commands::Fork { repo } => commands::fork_repository(repo)?,
-        Commands::Ip { copy } => commands::ip(*copy)?,
-        Commands::AiCommit { message } => commands::ai_commit(message)?,
-        Commands::Commit { message } => commands::commit(message)?,
-    }
+    let command: Box<dyn Command> = match cli.command {
+        Commands::Clone(cmd) => Box::new(cmd),
+        Commands::Fork(cmd) => Box::new(cmd),
+        Commands::Commit(cmd) => Box::new(cmd),
+        Commands::AiCommit(cmd) => Box::new(cmd),
+        Commands::Ip(cmd) => Box::new(cmd),
+        Commands::Network(cmd) => Box::new(cmd),
+    };
+
+    command.execute()?;
 
     Ok(())
 }
