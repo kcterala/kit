@@ -1,4 +1,4 @@
-use crate::commands::github::GetRepoResponse;
+use crate::services::github::GetRepoResponse;
 use anyhow::Result;
 use colored::*;
 use log::{error, info};

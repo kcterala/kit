@@ -1,8 +1,8 @@
 use clap::Args;
 
 use crate::commands::Command;
-use crate::commands::ai;
-use crate::commands::git;
+use crate::services::ai;
+use crate::services::git;
 
 #[derive(Args)]
 pub struct AiCommitCommand {
