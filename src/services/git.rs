@@ -1,15 +1,12 @@
-use crate::services::github::GetRepoResponse;
 use anyhow::Result;
 use colored::*;
 use log::{error, info};
 use std::process::{Command, ExitStatus};
 
-pub fn clone_repository(repo_details: &GetRepoResponse) -> Result<ExitStatus> {
-    info!("Cloning from {}", repo_details.ssh_url.bright_black());
+pub fn clone_repository(ssh_url: &str) -> Result<ExitStatus> {
+    info!("Cloning from {}", ssh_url.bright_black());
 
-    let clone_status = Command::new("git")
-        .args(&["clone", &repo_details.ssh_url])
-        .status()?;
+    let clone_status = Command::new("git").args(&["clone", ssh_url]).status()?;
 
     if !clone_status.success() {
         error!("Failed to clone repository");

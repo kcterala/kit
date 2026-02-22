@@ -1,6 +1,6 @@
-use crate::auth;
 use crate::commands::Command;
 use crate::config;
+use crate::services::auth;
 use crate::services::git;
 use crate::services::github;
 use crate::services::github::GetRepoResponse;
@@ -23,12 +23,11 @@ impl Command for CloneCommand {
             }
         };
 
-        // Ensure we have credentials (will trigger login if needed)
-        auth::get_github_token()?;
+        let token = auth::get_github_token()?;
 
         info!("Cloning repository {}/{}", owner, repo_name);
-        let repo_details: GetRepoResponse = github::get_repo_details(&owner, &repo_name)?;
-        let clone_status = git::clone_repository(&repo_details)?;
+        let repo_details: GetRepoResponse = github::get_repo_details(&token, &owner, &repo_name)?;
+        let clone_status = git::clone_repository(&repo_details.ssh_url)?;
 
         if !clone_status.success() {
             return Err(anyhow::anyhow!("Could not clone repository"));

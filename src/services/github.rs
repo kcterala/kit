@@ -1,4 +1,3 @@
-use crate::auth;
 use crate::http;
 use anyhow::Result;
 use log::{debug, error};
@@ -14,19 +13,13 @@ pub struct GetRepoResponse {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct UserInfo {
-    pub login: String,
-}
-
-#[derive(Deserialize, Debug)]
 pub struct ParentRepoInfo {
     pub ssh_url: String,
 }
 
-pub fn get_repo_details(owner: &str, repo_name: &str) -> Result<GetRepoResponse> {
+pub fn get_repo_details(token: &str, owner: &str, repo_name: &str) -> Result<GetRepoResponse> {
     debug!("Fetching repo details for {}/{}", owner, repo_name);
 
-    let token = auth::get_github_token()?;
     let client = http::get_client();
     let url = GET_REPO_DETAILS
         .replace("{owner}", owner)
@@ -52,10 +45,7 @@ pub fn get_repo_details(owner: &str, repo_name: &str) -> Result<GetRepoResponse>
     Ok(get_repo_response)
 }
 
-pub fn get_authenticated_user(token: &str) -> Result<UserInfo> {
-    debug!("Fetching authenticated user info");
-
-    let client = http::get_client();
+pub fn fetch_github_username(client: &reqwest::blocking::Client, token: &str) -> Result<String> {
     let response = client
         .get("https://api.github.com/user")
         .header("Accept", "application/vnd.github+json")
@@ -69,6 +59,11 @@ pub fn get_authenticated_user(token: &str) -> Result<UserInfo> {
         return Err(anyhow::anyhow!("Failed to fetch user info"));
     }
 
+    #[derive(Deserialize)]
+    struct UserInfo {
+        login: String,
+    }
+
     let user_info: UserInfo = response.json()?;
-    Ok(user_info)
+    Ok(user_info.login)
 }
