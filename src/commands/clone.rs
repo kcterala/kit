@@ -1,9 +1,9 @@
 use crate::auth;
 use crate::commands::Command;
-use crate::commands::git;
-use crate::commands::github;
-use crate::commands::github::GetRepoResponse;
 use crate::config;
+use crate::services::git;
+use crate::services::github;
+use crate::services::github::GetRepoResponse;
 use anyhow::Result;
 use clap::Args;
 use log::{error, info};

@@ -14,6 +14,7 @@ mod auth;
 mod commands;
 mod config;
 mod http;
+mod services;
 mod utils;
 
 #[derive(Parser)]

@@ -1,7 +1,7 @@
 use std::{thread, time::Duration};
 
-use crate::commands::github;
 use crate::config;
+use crate::services::github;
 use anyhow::Result;
 use colored::*;
 use log::info;

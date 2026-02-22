@@ -1,7 +1,7 @@
 use clap::Args;
 
 use crate::commands::Command;
-use crate::commands::git;
+use crate::services::git;
 
 #[derive(Args)]
 pub struct CommitCommand {
