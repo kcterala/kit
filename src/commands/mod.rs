@@ -5,6 +5,7 @@ pub mod clone;
 pub mod commit;
 pub mod fork;
 pub mod ip;
+pub mod network;
 
 pub trait Command {
     fn execute(&self) -> Result<()>;
