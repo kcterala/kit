@@ -1,4 +1,4 @@
-# Kit
+# kit
 
 A lightweight developer CLI with handy utilities.
 
@@ -15,8 +15,21 @@ Or build from source with `cargo build --release`.
 ### Clone
 ```bash
 kit clone https://github.com/user/repo
+kit clone git@github.com:user/repo.git
 ```
-Clones a repository. Automatically adds upstream remote for forks.
+Clones a repository. Automatically adds upstream remote for forks you own.
+
+### Fork
+```bash
+kit fork https://github.com/user/repo
+```
+Fork a repository (coming soon).
+
+### Commit
+```bash
+kit commit "your commit message"
+```
+Stages all changes and commits with the given message.
 
 ### AI Commit
 ```bash
@@ -28,11 +41,4 @@ Polishes your commit message using AI and offers multiple options to choose from
 ```bash
 kit ip        # Display your public IP
 kit ip -c     # Copy IP to clipboard
-```
-
-## Git Alias
-
-Override `git clone` with kit:
-```bash
-git config --global alias.clone '!kit clone'
 ```

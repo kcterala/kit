@@ -1,12 +1,13 @@
 use std::{thread, time::Duration};
 
-use crate::config;
-use crate::services::github;
 use anyhow::Result;
 use colored::*;
 use log::info;
 use reqwest::blocking::Client;
 use serde::Deserialize;
+
+use super::github;
+use crate::config;
 
 const DEVICE_CODE_URL: &str = "https://github.com/login/device/code";
 const TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
@@ -69,8 +70,8 @@ pub fn login() -> Result<()> {
             .json()?;
 
         if let Some(access_token) = token.access_token {
-            let user_info = github::get_authenticated_user(&access_token)?;
-            config::save_credentials(&access_token, &user_info.login)?;
+            let username = github::fetch_github_username(&client, &access_token)?;
+            config::save_credentials(&access_token, &username)?;
             info!("{} GitHub authentication successful!", "✓".green());
             return Ok(());
         }

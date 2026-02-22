@@ -10,7 +10,6 @@ use crate::commands::{
     fork::ForkCommand, ip::IpCommand,
 };
 
-mod auth;
 mod commands;
 mod config;
 mod http;
