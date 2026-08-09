@@ -6,8 +6,9 @@ use log::LevelFilter;
 use std::io::Write;
 
 use crate::commands::{
-    Command, ai_commit::AiCommitCommand, clone::CloneCommand, commit::CommitCommand,
-    fork::ForkCommand, ip::IpCommand, network::NetworkCommand, setup::SetupCommand,
+    Command, ai_commit::AiCommitCommand, brief::BriefCommand, clone::CloneCommand,
+    commit::CommitCommand, fork::ForkCommand, ip::IpCommand, network::NetworkCommand,
+    setup::SetupCommand,
 };
 
 mod commands;
@@ -26,6 +27,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    Brief(BriefCommand),
     Clone(CloneCommand),
     Fork(ForkCommand),
     Commit(CommitCommand),
@@ -41,6 +43,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     let command: Box<dyn Command> = match cli.command {
+        Commands::Brief(cmd) => Box::new(cmd),
         Commands::Clone(cmd) => Box::new(cmd),
         Commands::Fork(cmd) => Box::new(cmd),
         Commands::Ip(cmd) => Box::new(cmd),

@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 pub mod ai_commit;
+pub mod brief;
 pub mod clone;
 pub mod commit;
 pub mod fork;
