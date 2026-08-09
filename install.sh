@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 echo "Installing kit..."
 
@@ -10,21 +10,36 @@ ARCH="$(uname -m)"
 
 case "$OS" in
     Darwin)
-        if [ "$ARCH" = "arm64" ]; then
-            BINARY_NAME="kit-macos-arm64"
-        else
-            BINARY_NAME="kit-macos-amd64"
-        fi
+        PLATFORM="macos"
+        ;;
+    Linux)
+        PLATFORM="linux"
         ;;
     *)
         echo "Error: Unsupported operating system: $OS"
-        echo "Currently only macOS is supported."
+        echo "Supported operating systems: macOS and Linux."
         exit 1
         ;;
 esac
 
+case "$ARCH" in
+    x86_64 | amd64)
+        ARCHITECTURE="amd64"
+        ;;
+    arm64 | aarch64)
+        ARCHITECTURE="arm64"
+        ;;
+    *)
+        echo "Error: Unsupported architecture: $ARCH"
+        echo "Supported architectures: x86_64/amd64 and arm64/aarch64."
+        exit 1
+        ;;
+esac
+
+BINARY_NAME="kit-$PLATFORM-$ARCHITECTURE"
+
 # Get the latest release version
-LATEST_VERSION=$(curl -s https://api.github.com/repos/kcterala/kit/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+LATEST_VERSION=$(curl -fsSL https://api.github.com/repos/kcterala/kit/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
 
 if [ -z "$LATEST_VERSION" ]; then
     echo "Error: Could not determine latest version"
@@ -35,14 +50,10 @@ echo "Downloading kit $LATEST_VERSION for $OS ($ARCH)..."
 
 # Download the binary
 DOWNLOAD_URL="https://github.com/kcterala/kit/releases/download/$LATEST_VERSION/$BINARY_NAME"
-TMP_FILE="/tmp/kit"
+TMP_FILE="$(mktemp "${TMPDIR:-/tmp}/kit.XXXXXX")"
+trap 'rm -f "$TMP_FILE"' EXIT
 
-curl -L -o "$TMP_FILE" "$DOWNLOAD_URL"
-
-if [ $? -ne 0 ]; then
-    echo "Error: Failed to download kit"
-    exit 1
-fi
+curl -fsSL -o "$TMP_FILE" "$DOWNLOAD_URL"
 
 # Determine installation directory - try multiple paths
 INSTALL_DIRS=(
@@ -72,8 +83,7 @@ fi
 
 # Install the binary
 echo "Installing to $INSTALL_DIR..."
-mv "$TMP_FILE" "$INSTALL_DIR/kit"
-chmod +x "$INSTALL_DIR/kit"
+install -m 755 "$TMP_FILE" "$INSTALL_DIR/kit"
 
 # Check if install directory is in PATH
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then

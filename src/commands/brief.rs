@@ -13,10 +13,12 @@ use crate::http;
 
 const HACKER_NEWS_API_BASE: &str = "https://hacker-news.firebaseio.com/v0";
 const OPEN_METEO_API_URL: &str = "https://api.open-meteo.com/v1/forecast";
+const RESEND_EMAIL_API_URL: &str = "https://api.resend.com/emails";
 const TODOIST_API_BASE: &str = "https://api.todoist.com/api/v1";
 const DEFAULT_STASH_API_BASE: &str = "https://api.stash.kcterala.dev";
 const DEFAULT_ZOHO_API_BASE: &str = "https://sprintsapi.zoho.com/zsapi";
 const DEFAULT_ZOHO_ACCOUNTS_BASE: &str = "https://accounts.zoho.com";
+const DEFAULT_BRIEF_EMAIL_FROM: &str = "Kit <onboarding@resend.dev>";
 const MAX_TODOIST_TASKS: usize = 300;
 
 const WEATHER_LOCATIONS: [WeatherLocation; 3] = [
@@ -42,6 +44,14 @@ pub struct BriefCommand {
     #[arg(long, help = "Print the brief as JSON")]
     json: bool,
 
+    #[arg(
+        long,
+        value_name = "EMAIL",
+        conflicts_with = "json",
+        help = "Send the brief to this address using Resend"
+    )]
+    email_to: Option<String>,
+
     #[arg(long, default_value_t = 5, help = "Number of Hacker News stories")]
     hacker_news_limit: usize,
 
@@ -64,7 +74,10 @@ impl Command for BriefCommand {
 
         let brief = create_morning_brief(self.hacker_news_limit, self.since_hours);
 
-        if self.json {
+        if let Some(recipient) = &self.email_to {
+            send_morning_brief_email(&brief, recipient)?;
+            println!("Morning brief emailed to {recipient}");
+        } else if self.json {
             println!("{}", serde_json::to_string_pretty(&brief)?);
         } else {
             print_morning_brief(&brief);
@@ -758,6 +771,141 @@ fn fetch_stash_feed_items(
 
 fn first_environment_variable(names: &[&str]) -> Option<String> {
     names.iter().find_map(|name| env::var(name).ok())
+}
+
+#[derive(Serialize)]
+struct ResendEmailRequest<'a> {
+    from: &'a str,
+    to: [&'a str; 1],
+    subject: String,
+    text: String,
+}
+
+fn send_morning_brief_email(brief: &MorningBrief, recipient: &str) -> Result<()> {
+    let api_key = env::var("KIT_RESEND_API_KEY")
+        .context("KIT_RESEND_API_KEY is required when using --email-to")?;
+    let sender =
+        env::var("KIT_BRIEF_EMAIL_FROM").unwrap_or_else(|_| DEFAULT_BRIEF_EMAIL_FROM.to_string());
+    let generated_at = brief.generated_at.with_timezone(&india_utc_offset());
+    let request = ResendEmailRequest {
+        from: &sender,
+        to: [recipient],
+        subject: format!("Morning Brief · {}", generated_at.format("%A, %B %-d")),
+        text: render_morning_brief_text(brief),
+    };
+
+    let response = http::get_client()
+        .post(RESEND_EMAIL_API_URL)
+        .bearer_auth(api_key)
+        .json(&request)
+        .send()
+        .context("Failed to send the morning brief through Resend")?;
+    if !response.status().is_success() {
+        bail!("Resend rejected the morning brief ({})", response.status());
+    }
+
+    Ok(())
+}
+
+fn render_morning_brief_text(brief: &MorningBrief) -> String {
+    let mut output = format!(
+        "MORNING BRIEF\n{}\n",
+        brief
+            .generated_at
+            .with_timezone(&india_utc_offset())
+            .format("%A, %B %-d · %-I:%M %p IST")
+    );
+
+    render_text_section(&mut output, "WEATHER", &brief.weather, |weather, _| {
+        format!(
+            "• {}: {:.1}°C (feels {:.1}°C) · {} · H {:.1}° / L {:.1}° · Rain today {}%",
+            weather.location,
+            weather.temperature_celsius,
+            weather.apparent_temperature_celsius,
+            weather.condition,
+            weather.high_celsius,
+            weather.low_celsius,
+            weather.precipitation_probability_percent
+        )
+    });
+    render_text_section(
+        &mut output,
+        "HACKER NEWS",
+        &brief.hacker_news,
+        |story, index| {
+            format!(
+                "{}. {} ({} points, {} comments)\n   {}",
+                index + 1,
+                story.title,
+                story.score,
+                story.comments,
+                story.url
+            )
+        },
+    );
+    render_text_section(&mut output, "TODOIST", &brief.todoist, |task, _| {
+        format!("• {} ({})\n  {}", task.content, task.due_label(), task.url)
+    });
+    render_text_section(
+        &mut output,
+        "ZOHO SPRINTS",
+        &brief.zoho_sprints,
+        |task, _| {
+            let due = task
+                .end_date
+                .as_deref()
+                .map(|date| format!(" · due {date}"))
+                .unwrap_or_default();
+            format!("• {}{due}", task.name)
+        },
+    );
+    render_text_section(
+        &mut output,
+        &format!(
+            "STASH (EXPERIMENTAL) · LAST {} HOURS",
+            brief.stash_since_hours
+        ),
+        &brief.stash,
+        |item, _| format!("• {} ({})\n  {}", item.title, item.feed_title, item.url),
+    );
+
+    output
+}
+
+fn india_utc_offset() -> chrono::FixedOffset {
+    chrono::FixedOffset::east_opt(5 * 60 * 60 + 30 * 60).expect("India's UTC offset is valid")
+}
+
+fn render_text_section<T>(
+    output: &mut String,
+    title: &str,
+    section: &BriefSection<T>,
+    format_item: impl Fn(&T, usize) -> String,
+) {
+    output.push_str(&format!("\n{title}\n"));
+
+    match section.status {
+        BriefSectionStatus::Ready => {
+            if section.items.is_empty() {
+                output.push_str("Nothing waiting\n");
+            } else {
+                for (index, item) in section.items.iter().enumerate() {
+                    output.push_str(&format!("{}\n", format_item(item, index)));
+                }
+            }
+            if let Some(message) = &section.message {
+                output.push_str(&format!("Note: {message}\n"));
+            }
+        }
+        BriefSectionStatus::Skipped => output.push_str(&format!(
+            "Skipped: {}\n",
+            section.message.as_deref().unwrap_or_default()
+        )),
+        BriefSectionStatus::Failed => output.push_str(&format!(
+            "Unavailable: {}\n",
+            section.message.as_deref().unwrap_or_default()
+        )),
+    }
 }
 
 fn print_morning_brief(brief: &MorningBrief) {
