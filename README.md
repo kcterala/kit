@@ -42,3 +42,9 @@ Polishes your commit message using AI and offers multiple options to choose from
 kit ip        # Display your public IP
 kit ip -c     # Copy IP to clipboard
 ```
+
+### Setup agent conventions
+```bash
+kit setup agents
+```
+Downloads the coding conventions from `https://agents.kcterala.dev/agents.md` and overwrites the global instructions for detected Pi and Claude Code installations.

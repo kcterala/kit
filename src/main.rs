@@ -7,7 +7,7 @@ use std::io::Write;
 
 use crate::commands::{
     Command, ai_commit::AiCommitCommand, clone::CloneCommand, commit::CommitCommand,
-    fork::ForkCommand, ip::IpCommand, network::NetworkCommand,
+    fork::ForkCommand, ip::IpCommand, network::NetworkCommand, setup::SetupCommand,
 };
 
 mod commands;
@@ -32,6 +32,7 @@ enum Commands {
     AiCommit(AiCommitCommand),
     Ip(IpCommand),
     Network(NetworkCommand),
+    Setup(SetupCommand),
 }
 
 fn main() -> Result<()> {
@@ -46,6 +47,7 @@ fn main() -> Result<()> {
         Commands::AiCommit(cmd) => Box::new(cmd),
         Commands::Commit(cmd) => Box::new(cmd),
         Commands::Network(cmd) => Box::new(cmd),
+        Commands::Setup(cmd) => Box::new(cmd),
     };
 
     command.execute()?;
