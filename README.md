@@ -12,6 +12,15 @@ curl -sSL https://raw.githubusercontent.com/kcterala/kit/main/install.sh | bash
 
 Or install Rust and build from source with `cargo build --release`.
 
+Update an installed release to the latest version:
+
+```bash
+kit update
+```
+
+Kit replaces the currently running binary. If it was installed in a system directory such as
+`/usr/local/bin`, run `sudo kit update` so Kit can write to that directory.
+
 ## Commands
 
 ### Clone
@@ -59,7 +68,9 @@ kit brief --email-to you@example.com
 ```
 Shows current weather for Pune, Hyderabad, and Khammam; top Hacker News stories; and, when configured, today's Todoist tasks, assigned Zoho Sprints work items, and unread Stash feed items from the last 24 hours. Each source is independent, so one unavailable service does not hide the others. Weather data is provided by Open-Meteo.
 
-Configure integrations with environment variables:
+Configure integrations with environment variables. Kit automatically loads them from
+`~/.config/kit/brief.env`, or from `/etc/kit/brief.env` for a system-wide installation. Variables
+already present in the process environment take precedence.
 
 | Source | Variables |
 | --- | --- |
@@ -71,7 +82,8 @@ Zoho OAuth tokens require the `ZohoSprints.items.READ` scope. Stash is experimen
 
 #### Email delivery with Resend
 
-`--email-to` sends the brief through [Resend](https://resend.com). Set its API key in
+`--email-to` sends a formatted HTML brief, with a plain-text fallback, through
+[Resend](https://resend.com). Set its API key in
 `KIT_RESEND_API_KEY`. By default, kit sends from `Kit <onboarding@resend.dev>`, which Resend only
 allows when the recipient is the email address associated with your Resend account. For other
 recipients, verify a domain in Resend and set `KIT_BRIEF_EMAIL_FROM`, for example
@@ -108,10 +120,11 @@ be included.
 
 ##### Test email delivery
 
-Send a brief immediately before creating the schedule:
+Send a brief immediately before creating the schedule. Kit loads `/etc/kit/brief.env`
+automatically:
 
 ```bash
-sudo sh -c 'set -a; . /etc/kit/brief.env; set +a; /usr/local/bin/kit brief --email-to kcterala@gmail.com'
+sudo /usr/local/bin/kit brief --email-to kcterala@gmail.com
 ```
 
 A successful request prints `Morning brief emailed to kcterala@gmail.com`. Check the inbox and
@@ -133,7 +146,7 @@ Add this to root's crontab with `sudo crontab -e` (adjust the `kit` path if need
 
 ```cron
 CRON_TZ=Asia/Kolkata
-0 6 * * * set -a; . /etc/kit/brief.env; set +a; /usr/local/bin/kit brief --email-to kcterala@gmail.com >> /var/log/kit-brief.log 2>&1
+0 6 * * * /usr/local/bin/kit brief --email-to kcterala@gmail.com >> /var/log/kit-brief.log 2>&1
 ```
 
 Confirm that the entry was saved and inspect its output after a scheduled run:

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::commands::Command;
+use crate::config;
 use crate::http;
 
 const HACKER_NEWS_API_BASE: &str = "https://hacker-news.firebaseio.com/v0";
@@ -65,6 +66,8 @@ pub struct BriefCommand {
 
 impl Command for BriefCommand {
     fn execute(&self) -> Result<()> {
+        config::load_environment()?;
+
         if self.hacker_news_limit == 0 {
             bail!("Hacker News limit must be greater than zero");
         }
@@ -779,6 +782,7 @@ struct ResendEmailRequest<'a> {
     to: [&'a str; 1],
     subject: String,
     text: String,
+    html: String,
 }
 
 fn send_morning_brief_email(brief: &MorningBrief, recipient: &str) -> Result<()> {
@@ -792,6 +796,7 @@ fn send_morning_brief_email(brief: &MorningBrief, recipient: &str) -> Result<()>
         to: [recipient],
         subject: format!("Morning Brief · {}", generated_at.format("%A, %B %-d")),
         text: render_morning_brief_text(brief),
+        html: render_morning_brief_html(brief),
     };
 
     let response = http::get_client()
@@ -805,6 +810,156 @@ fn send_morning_brief_email(brief: &MorningBrief, recipient: &str) -> Result<()>
     }
 
     Ok(())
+}
+
+fn render_morning_brief_html(brief: &MorningBrief) -> String {
+    let generated_at = brief
+        .generated_at
+        .with_timezone(&india_utc_offset())
+        .format("%A, %B %-d · %-I:%M %p IST");
+    let mut sections = String::new();
+
+    render_html_section(&mut sections, "Weather", &brief.weather, |weather, _| {
+        format!(
+            "<strong style=\"font-size:16px;color:#111827\">{}</strong><br>\
+             <span style=\"font-size:24px;font-weight:700;color:#2563eb\">{:.1}°C</span>\
+             <span style=\"color:#6b7280\"> · feels {:.1}°C · {}</span><br>\
+             <span style=\"font-size:13px;color:#6b7280\">High {:.1}° · Low {:.1}° · Rain {}%</span>",
+            html_escape(&weather.location),
+            weather.temperature_celsius,
+            weather.apparent_temperature_celsius,
+            html_escape(&weather.condition),
+            weather.high_celsius,
+            weather.low_celsius,
+            weather.precipitation_probability_percent
+        )
+    });
+    render_html_section(
+        &mut sections,
+        "Hacker News",
+        &brief.hacker_news,
+        |story, index| {
+            format!(
+                "<span style=\"color:#f97316;font-weight:700\">{}.</span> \
+                 <a href=\"{}\" style=\"color:#111827;font-weight:600;text-decoration:none\">{}</a><br>\
+                 <span style=\"font-size:13px;color:#6b7280\">{} points · {} comments</span>",
+                index + 1,
+                html_escape(&story.url),
+                html_escape(&story.title),
+                story.score,
+                story.comments
+            )
+        },
+    );
+    render_html_section(&mut sections, "Todoist", &brief.todoist, |task, _| {
+        format!(
+            "<a href=\"{}\" style=\"color:#111827;font-weight:600;text-decoration:none\">{}</a>\
+             <span style=\"color:#dc2626\"> · {}</span>",
+            html_escape(&task.url),
+            html_escape(&task.content),
+            html_escape(task.due_label())
+        )
+    });
+    render_html_section(
+        &mut sections,
+        "Zoho Sprints",
+        &brief.zoho_sprints,
+        |task, _| {
+            let due = task
+                .end_date
+                .as_deref()
+                .map(|date| {
+                    format!(
+                        "<span style=\"color:#6b7280\"> · due {}</span>",
+                        html_escape(date)
+                    )
+                })
+                .unwrap_or_default();
+            format!(
+                "<strong style=\"color:#111827\">{}</strong>{due}",
+                html_escape(&task.name)
+            )
+        },
+    );
+    render_html_section(
+        &mut sections,
+        &format!("Stash · last {} hours", brief.stash_since_hours),
+        &brief.stash,
+        |item, _| {
+            format!(
+                "<a href=\"{}\" style=\"color:#111827;font-weight:600;text-decoration:none\">{}</a><br>\
+                 <span style=\"font-size:13px;color:#6b7280\">{}</span>",
+                html_escape(&item.url),
+                html_escape(&item.title),
+                html_escape(&item.feed_title)
+            )
+        },
+    );
+
+    format!(
+        "<!doctype html><html><body style=\"margin:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#374151\">\
+         <div style=\"display:none;max-height:0;overflow:hidden\">Weather, news, and tasks for your day.</div>\
+         <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"background:#f3f4f6\"><tr><td align=\"center\" style=\"padding:24px 12px\">\
+         <table role=\"presentation\" width=\"100%\" cellspacing=\"0\" cellpadding=\"0\" style=\"max-width:640px;background:#ffffff;border-radius:16px;overflow:hidden\">\
+         <tr><td style=\"padding:32px;background:#111827;color:#ffffff\"><div style=\"font-size:12px;font-weight:700;letter-spacing:2px;color:#93c5fd\">KIT</div>\
+         <h1 style=\"margin:8px 0 6px;font-size:30px;line-height:1.2\">Morning Brief</h1>\
+         <div style=\"color:#d1d5db;font-size:14px\">{generated_at}</div></td></tr>\
+         <tr><td style=\"padding:8px 28px 28px\">{sections}</td></tr>\
+         <tr><td style=\"padding:18px 28px;background:#f9fafb;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af;text-align:center\">Sent by Kit</td></tr>\
+         </table></td></tr></table></body></html>"
+    )
+}
+
+fn render_html_section<T>(
+    output: &mut String,
+    title: &str,
+    section: &BriefSection<T>,
+    format_item: impl Fn(&T, usize) -> String,
+) {
+    output.push_str(&format!(
+        "<h2 style=\"margin:28px 0 10px;font-size:13px;letter-spacing:1.2px;text-transform:uppercase;color:#2563eb\">{}</h2>",
+        html_escape(title)
+    ));
+
+    match section.status {
+        BriefSectionStatus::Ready if !section.items.is_empty() => {
+            for (index, item) in section.items.iter().enumerate() {
+                output.push_str(&format!(
+                    "<div style=\"padding:14px 0;border-bottom:1px solid #e5e7eb;line-height:1.55\">{}</div>",
+                    format_item(item, index)
+                ));
+            }
+            if let Some(message) = &section.message {
+                output.push_str(&format!(
+                    "<p style=\"margin:10px 0;color:#92400e;font-size:13px\">Note: {}</p>",
+                    html_escape(message)
+                ));
+            }
+        }
+        BriefSectionStatus::Ready => output.push_str(
+            "<div style=\"padding:14px;background:#f9fafb;border-radius:8px;color:#6b7280\">Nothing waiting</div>",
+        ),
+        BriefSectionStatus::Skipped | BriefSectionStatus::Failed => {
+            let label = match section.status {
+                BriefSectionStatus::Skipped => "Skipped",
+                BriefSectionStatus::Failed => "Unavailable",
+                BriefSectionStatus::Ready => unreachable!(),
+            };
+            output.push_str(&format!(
+                "<div style=\"padding:14px;background:#f9fafb;border-radius:8px;color:#6b7280\"><strong>{label}:</strong> {}</div>",
+                html_escape(section.message.as_deref().unwrap_or_default())
+            ));
+        }
+    }
+}
+
+fn html_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }
 
 fn render_morning_brief_text(brief: &MorningBrief) -> String {
@@ -1085,5 +1240,42 @@ mod tests {
         assert_eq!(weather_condition(63), "Rain");
         assert_eq!(weather_condition(95), "Thunderstorms");
         assert_eq!(weather_condition(100), "Unknown");
+    }
+
+    #[test]
+    fn renders_styled_html_email_and_escapes_content() {
+        let brief = MorningBrief {
+            generated_at: Utc::now(),
+            stash_since_hours: 24,
+            weather: BriefSection::ready(vec![WeatherSummary {
+                location: "Pune <city>".to_string(),
+                condition: "Clear & sunny".to_string(),
+                temperature_celsius: 28.0,
+                apparent_temperature_celsius: 29.0,
+                high_celsius: 31.0,
+                low_celsius: 21.0,
+                precipitation_probability_percent: 10,
+            }]),
+            hacker_news: BriefSection::ready(vec![HackerNewsStory {
+                id: 1,
+                title: "Rust's <future>".to_string(),
+                score: 100,
+                comments: 20,
+                url: "https://example.com/?a=1&b=2".to_string(),
+            }]),
+            todoist: BriefSection::skipped("not configured"),
+            zoho_sprints: BriefSection::skipped("not configured"),
+            stash: BriefSection::skipped("not configured"),
+        };
+
+        let html = render_morning_brief_html(&brief);
+
+        assert!(html.starts_with("<!doctype html>"));
+        assert!(html.contains("background:#111827"));
+        assert!(html.contains("Pune &lt;city&gt;"));
+        assert!(html.contains("Clear &amp; sunny"));
+        assert!(html.contains("Rust&#39;s &lt;future&gt;"));
+        assert!(html.contains("https://example.com/?a=1&amp;b=2"));
+        assert!(!html.contains("Pune <city>"));
     }
 }

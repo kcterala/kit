@@ -8,7 +8,7 @@ use std::io::Write;
 use crate::commands::{
     Command, ai_commit::AiCommitCommand, brief::BriefCommand, clone::CloneCommand,
     commit::CommitCommand, fork::ForkCommand, ip::IpCommand, network::NetworkCommand,
-    setup::SetupCommand,
+    setup::SetupCommand, update::UpdateCommand,
 };
 
 mod commands;
@@ -35,6 +35,8 @@ enum Commands {
     Ip(IpCommand),
     Network(NetworkCommand),
     Setup(SetupCommand),
+    #[command(about = "Update kit to the latest release")]
+    Update(UpdateCommand),
 }
 
 fn main() -> Result<()> {
@@ -51,6 +53,7 @@ fn main() -> Result<()> {
         Commands::Commit(cmd) => Box::new(cmd),
         Commands::Network(cmd) => Box::new(cmd),
         Commands::Setup(cmd) => Box::new(cmd),
+        Commands::Update(cmd) => Box::new(cmd),
     };
 
     command.execute()?;

@@ -22,6 +22,26 @@ fn config_path() -> Result<PathBuf> {
     Ok(path)
 }
 
+pub fn load_environment() -> Result<()> {
+    let mut user_path =
+        dirs::config_dir().ok_or_else(|| anyhow::anyhow!("Could not find config directory"))?;
+    user_path.push("kit");
+    user_path.push("brief.env");
+
+    for path in [user_path, PathBuf::from("/etc/kit/brief.env")] {
+        if path.exists() {
+            dotenvy::from_path(&path).map_err(|error| {
+                anyhow::anyhow!(
+                    "Could not load environment from {}: {error}",
+                    path.display()
+                )
+            })?;
+        }
+    }
+
+    Ok(())
+}
+
 pub fn save_credentials(token: &str, username: &str) -> Result<()> {
     let path = config_path()?;
     let mut config = if path.exists() {
